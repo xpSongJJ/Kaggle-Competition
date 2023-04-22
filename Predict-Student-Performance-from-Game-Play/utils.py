@@ -40,20 +40,19 @@ class EarlyStopping:
 class TrainProcessing:
     """
     about fill NaN:
-    numeric columns: fill nan with mode or 0
+    numeric columns: fill nan with mode
     category columns: fill nan with -1
     """
 
-    def __init__(self, DataFrame, mode=None):
+    def __init__(self, dataframe, mode=None):
         if mode is None:
             mode = {'room_coor_x': 426.725528, 'room_coor_y': -102.,
                     'screen_coor_x': 822., 'screen_coor_y': 431., 'hover_duration': 17.}
-        self.df = DataFrame
+        self.df = dataframe
         self.var = {}
         self.drop_columns()
         self.mode = mode
         self._quantize()
-        self._slimming()
 
     def drop_columns(self, drop_columns=None):
         drop_columns = ['fullscreen', 'hq', 'music'] if drop_columns is None else drop_columns
@@ -63,14 +62,14 @@ class TrainProcessing:
         return self
 
     def _quantize(self):
-        # index
-        self.df['index'] = self.df.groupby('session_id').cumcount() + 1
+        # index, exist error info(not continuous increment), but test data maybe have it, so it can be looked as noisy
+        # self.df['index'] = self.df.groupby('session_id').cumcount() + 1
 
         # elapsed_time, convert ms to s by divide by 1000, drop the index whose elapsed_time > 6000
         self.df['elapsed_time'] = self.df['elapsed_time'].apply(lambda x: x / 1000).astype(np.float32)
-        self.df.drop(self.df[self.df['elapsed_time'] > 6000].index, inplace=True)
-        self.df['index_time'] = self.df.groupby('session_id')['elapsed_time'].diff().fillna(
-            self.df['elapsed_time']).astype(np.float32)
+        # self.df.drop(self.df[self.df['elapsed_time'] > 6000].index, inplace=True)
+        # self.df['index_time'] =
+        # self.df.groupby('session_id')['elapsed_time'].diff().fillna(self.df['elapsed_time']).astype(np.float32)
 
         # fill nan with median for numerical columns
         cols_to_fill = ['room_coor_x', 'room_coor_y', 'screen_coor_x', 'screen_coor_y', 'hover_duration']
@@ -123,38 +122,6 @@ class TrainProcessing:
         self.df['minute'] = self.df['session_id'].apply(lambda x: int(str(x)[8:10])).astype(np.uint8)
         self.df['second'] = self.df['session_id'].apply(lambda x: int(str(x)[10:12])).astype(np.uint8)
 
-    def _slimming(self):
-        df = self.df
-        start_mem = df.memory_usage(index=True, deep=True).sum() / 1024 ** 2
-        print(f'Initial memory usage of dataframe is {round(start_mem, 2)} MB')
-        for col in df.columns:
-            col_type = df[col].dtype.name
-            if (col_type != 'datetime64[ns]') & (col_type != 'category'):
-                if col_type != 'object':
-                    c_min = df[col].min()
-                    c_max = df[col].max()
-                    if str(col_type)[:3] == 'int':
-                        if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
-                            df[col] = df[col].astype(np.int8)
-                        elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
-                            df[col] = df[col].astype(np.int16)
-                        elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
-                            df[col] = df[col].astype(np.int32)
-                        elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
-                            df[col] = df[col].astype(np.int64)
-                    else:
-                        if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
-                            df[col] = df[col].astype(np.float16)
-                        elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
-                            df[col] = df[col].astype(np.float32)
-                        else:
-                            pass
-                else:
-                    df[col] = df[col].astype('category')
-        mem_usg = df.memory_usage(index=True, deep=True).sum() / 1024 ** 2
-        print(f"Memory usage of became: {round(mem_usg, 2)} MB")
-        return self
-
     def get_data(self, level_group):
         group = self.df.groupby('level_group').get_group(level_group)
         return group.reset_index(drop=True)
@@ -178,22 +145,22 @@ class TrainProcessing:
 
 
 def test_processing(dataframe, vars_dict, seq_len):
-    columns1 = ['index', 'index_time', 'room_coor_x', 'room_coor_y', 'screen_coor_x',
+    columns1 = ['index', 'elapsed_time', 'room_coor_x', 'room_coor_y', 'screen_coor_x',
                 'screen_coor_y', 'hover_duration', 'event_name', 'name', 'level', 'page', 'fqid', 'room_fqid',
-                'text_fqid', 'level_group', 'text']
+                'text_fqid', 'level_group', 'text']  # 16 columns
     columns2 = ['year', 'month', 'weekday', 'hour', 'minute', 'second']
     df = dataframe
 
     def _quantize():
         var = vars_dict
-        # index
-        df['index'] = df.groupby('session_id').cumcount() + 1
+        # index, not increment from 1 by session_id/level_group
+        # df['index'] = df.groupby('session_id').cumcount() + 1
 
         # elapsed_time, convert ms to s by divide by 1000, drop the index whose elapsed_time > 6000
         df['elapsed_time'] = df['elapsed_time'].apply(lambda x: x / 1000).astype(np.float32)
-        df.drop(df[df['elapsed_time'] > 6000].index, inplace=True)
-        df['index_time'] = df.groupby('session_id')['elapsed_time'].diff().fillna(
-            df['elapsed_time']).astype(np.float32)
+        # df.drop(df[df['elapsed_time'] > 6000].index, inplace=True)
+        # df['index_time'] = df.groupby('session_id')['elapsed_time'].diff().fillna(
+        #     df['elapsed_time']).astype(np.float32)
 
         # fill nan with median for numerical columns
         cols_to_fill = ['room_coor_x', 'room_coor_y', 'screen_coor_x', 'screen_coor_y', 'hover_duration']
@@ -237,7 +204,8 @@ def test_processing(dataframe, vars_dict, seq_len):
     _quantize()
 
     if len(df) < seq_len:
-        df = df.reindex(index=list(range(seq_len)), fill_value=-1)
+        # len of filled df is 1 longer than prototype so that can be as a batch
+        df = df.reindex(index=list(range(seq_len + 1)), fill_value=-1)
 
     level_group = df['level_group'][0]
 
@@ -247,7 +215,7 @@ def test_processing(dataframe, vars_dict, seq_len):
     stamp = df[columns2][begin:end].values
 
     batch_size = seq_num - seq_len + 1
-    batch_size = min(batch_size, 256)
+    batch_size = min(batch_size, 96)
     batch_data = np.zeros((batch_size, seq_len, len(columns1)))
     batch_stamp = np.zeros((batch_size, seq_len, 6))
     for i in range(batch_size):
@@ -259,26 +227,25 @@ def test_processing(dataframe, vars_dict, seq_len):
 
 
 class MyDataset(Dataset):
-    def __init__(self, dataframe, labels, flag, seq_len, columns=None):
+    def __init__(self, dataframe, labels: dict, flag, seq_len, columns=None):
         if columns is None:
-            columns = ['index', 'index_time', 'room_coor_x', 'room_coor_y', 'screen_coor_x',
-                       'screen_coor_y', 'hover_duration', 'event_name', 'name', 'level', 'page', 'fqid', 'room_fqid',
-                       'text_fqid', 'level_group', 'text']
+            columns = ['index', 'elapsed_time', 'room_coor_x', 'room_coor_y', 'screen_coor_x', 'screen_coor_y',
+                       'hover_duration', 'event_name', 'name', 'level', 'page', 'fqid', 'room_fqid',
+                       'text_fqid', 'text', 'year', 'month', 'weekday', 'hour']  # 19 columns
         self.columns = columns
         assert flag in ['train', 'val']
         type_map = {'train': 0, 'val': 1}
         self.set_type = type_map[flag]  # 0 or 1
         self.df = dataframe
-        self.labels_df = labels
+        self.labels = labels
         self.seq_len = seq_len
         self.questions = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10',
                           'q11', 'q12', 'q13', 'q14', 'q15', 'q16', 'q17', 'q18']
         self._read_data()
 
     def _read_data(self):
-        self.labels = self.labels_df.set_index('session_id')['correct'].to_dict()
         session = self.df['session_id'].unique()  # ndarray
-        mid = int(len(session)*0.6)
+        mid = int(len(session) * 0.8)
         border1 = [0, mid]
         border2 = [mid, len(session)]
         self.session = session[border1[self.set_type]:border2[self.set_type]]
@@ -288,12 +255,77 @@ class MyDataset(Dataset):
         session_id = self.session[item]
         session_q = [str(session_id) + '_' + q for q in self.questions]
         data_y = [self.labels[sq] for sq in session_q]
-        group = self.groups.get_group(session_id).reset_index(drop=True)
-        start = np.random.randint(0, len(group) - self.seq_len + 1)
-        data = group[start:start + self.seq_len]
-        stamp = data[['year', 'month', 'weekday', 'hour', 'minute', 'second']].values
-        data = data[self.columns].values
-        return torch.FloatTensor(data), torch.FloatTensor(data_y), torch.FloatTensor(stamp)
+        data_x = self.groups.get_group(session_id).reset_index(drop=True)
+        if len(data_x) < self.seq_len:
+            pad_len = self.seq_len - len(data_x)
+            data_x = data_x[self.columns].values
+            data_x = np.pad(data_x, ((0, pad_len), (0, 0)))
+        else:
+            data_x = data_x.iloc[0:self.seq_len]
+            data_x = data_x[self.columns].values
+        return torch.FloatTensor(data_x), torch.FloatTensor(data_y)
 
     def __len__(self):
         return len(self.session)
+
+
+def reduce_memory_usage(df):
+    if isinstance(df, pd.DataFrame):
+        start_mem = df.memory_usage(index=True, deep=True).sum() / 1024 ** 2
+        print(f'Initial memory usage of dataframe is {round(start_mem, 2)} MB')
+        for col in df.columns:
+            col_type = df[col].dtype.name
+            if (col_type != 'datetime64[ns]') & (col_type != 'category'):
+                if col_type != 'object':
+                    c_min = df[col].min()
+                    c_max = df[col].max()
+                    if str(col_type)[:3] == 'int':
+                        if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+                            df[col] = df[col].astype(np.int8)
+                        elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+                            df[col] = df[col].astype(np.int16)
+                        elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+                            df[col] = df[col].astype(np.int32)
+                        elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
+                            df[col] = df[col].astype(np.int64)
+                    else:
+                        if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
+                            df[col] = df[col].astype(np.float16)
+                        elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
+                            df[col] = df[col].astype(np.float32)
+                        else:
+                            pass
+                else:
+                    df[col] = df[col].astype('category')
+        mem_usg = df.memory_usage(index=True, deep=True).sum() / 1024 ** 2
+        print(f"Memory usage of became: {round(mem_usg, 2)} MB")
+        return df
+
+
+def prefix_na(cat: list, na):
+    if na in cat:
+        cat.insert(0, cat.pop(cat.index(na)))
+
+
+def preprocess(dataframe, cat_map):
+    # categorical type map to numeric
+    df = dataframe
+    columns = df.columns
+    NUMS = ['room_coor_x', 'room_coor_y', 'screen_coor_x', 'screen_coor_y', 'hover_duration']
+    CATS = ['event_name', 'name', 'page', 'fqid', 'room_fqid', 'text_fqid', 'text']
+    fill_na = {'event_name': 'event_name_na', 'name': 'name_na', 'page': 7.0,
+               'fqid': 'fqid_na', 'room_fqid': 'room_fqid_na', 'text_fqid': 'text_fqid_na', 'text': 'text_na'}
+    df = df.fillna(value=fill_na)
+    for cat in CATS:
+        df[cat] = pd.Categorical(df[cat], cat_map[cat])
+
+    df['elapsed_time'] = df['elapsed_time'].apply(lambda x: x / 1000).astype(np.float32)
+    df[NUMS].fillna(0)
+
+
+def drop_session(dataframe, min_len):
+    df = dataframe
+    groups = df.groupby(['session_id', 'level_group'])
+    deleted_groups = groups.filter(lambda x: len(x) < min_len)
+    df = groups.filter(lambda x: len(x) >= min_len)
+    return df, deleted_groups

@@ -1,18 +1,18 @@
 import torch
 import torch.nn as nn
-from encoder import Encoder, EncoderLayer, ConvLayer, EncoderStack
-from attention import FullAttention, ProbAttention, AttentionLayer
-from embed import DataEmbedding
+from blocks.attention import FullAttention, ProbAttention, AttentionLayer
+from blocks.embed import DataEmbedding
+from blocks.encoder import Encoder, EncoderLayer, ConvLayer, EncoderStack
 
 
 class HFAttention(nn.Module):
-    def __init__(self, in_len, token_len, d_model=512,
+    def __init__(self, seq_len, token_size, d_model=512,
                  factor=5, n_heads=8, e_layers=3, d_ff=512,
                  dropout=0.0, attn='prob', activation='gelu', distil=True):
         super(HFAttention, self).__init__()
         self.attn = attn
         # Encoding
-        self.enc_embedding = DataEmbedding(token_len, d_model, dropout)
+        self.enc_embedding = DataEmbedding(token_size, d_model, dropout)
         # Attention
         Attn = ProbAttention if attn == 'prob' else FullAttention
         # Encoder
@@ -50,22 +50,22 @@ class HFAttention(nn.Module):
 
         self.judge1 = nn.Sequential(
             # B * C * L <--> B * L * D
-            nn.Conv1d(in_channels=in_len // 2**(e_layers-1), out_channels=1, kernel_size=1, padding=0),
+            nn.Conv1d(in_channels=seq_len // 2**(e_layers-1), out_channels=1, kernel_size=1, padding=0),
             nn.GELU() if activation == 'gelu' else nn.ReLU(),
             nn.Linear(d_model, 3, bias=True))   # [3, 10, 5]
         self.judge2 = nn.Sequential(
             # B * C * L <--> B * L * D
-            nn.Conv1d(in_channels=in_len // 2 ** (e_layers - 1), out_channels=1, kernel_size=1, padding=0),
+            nn.Conv1d(in_channels=seq_len // 2 ** (e_layers - 1), out_channels=1, kernel_size=1, padding=0),
             nn.GELU() if activation == 'gelu' else nn.ReLU(),
             nn.Linear(d_model, 10, bias=True))
         self.judge3 = nn.Sequential(
             # B * C * L <--> B * L * D
-            nn.Conv1d(in_channels=in_len // 2 ** (e_layers - 1), out_channels=1, kernel_size=1, padding=0),
+            nn.Conv1d(in_channels=seq_len // 2 ** (e_layers - 1), out_channels=1, kernel_size=1, padding=0),
             nn.GELU() if activation == 'gelu' else nn.ReLU(),
             nn.Linear(d_model, 5, bias=True))
 
-    def forward(self, x, x_mark, enc_self_mask=None):
-        enc_out = self.enc_embedding(x, x_mark)
+    def forward(self, x, enc_self_mask=None):
+        enc_out = self.enc_embedding(x)
         enc_out1, _ = self.encoder(enc_out, attn_mask=enc_self_mask)
         enc_out2, _ = self.encoder2(enc_out1, attn_mask=enc_self_mask)
         enc_out3, _ = self.encoder3(enc_out2, attn_mask=enc_self_mask)

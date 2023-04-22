@@ -42,11 +42,9 @@ class TemporalEmbedding(nn.Module):
     def __init__(self, d_model):
         super(TemporalEmbedding, self).__init__()
 
-        num_embed = {'second': 60, 'minute': 60, 'hour': 24, 'weekday': 7, 'month': 13, 'year': 100}
+        num_embed = {'hour': 24, 'weekday': 7, 'month': 13, 'year': 100}
 
         Embed = nn.Embedding
-        self.second_embed = Embed(num_embed['second'], d_model)
-        self.minute_embed = Embed(num_embed['minute'], d_model)
         self.hour_embed = Embed(num_embed['hour'], d_model)
         self.weekday_embed = Embed(num_embed['weekday'], d_model)
         self.month_embed = Embed(num_embed['month'], d_model)
@@ -54,15 +52,12 @@ class TemporalEmbedding(nn.Module):
 
     def forward(self, x):
         x = x.long()
-
-        second_x = self.second_embed(x[:, :, 5])
-        minute_x = self.minute_embed(x[:, :, 4])
         hour_x = self.hour_embed(x[:, :, 3])
         weekday_x = self.weekday_embed(x[:, :, 2])
         month_x = self.month_embed(x[:, :, 1])
         year_x = self.year_embed(x[:, :, 0])
 
-        return second_x + minute_x + hour_x + weekday_x + month_x + year_x
+        return hour_x + weekday_x + month_x + year_x
 
 
 class DataEmbedding(nn.Module):
@@ -71,10 +66,10 @@ class DataEmbedding(nn.Module):
 
         self.value_embedding = TokenEmbedding(token_len, d_model)
         self.position_embedding = PositionalEmbedding(d_model=d_model)
-        self.temporal_embedding = TemporalEmbedding(d_model=d_model)
+        # self.temporal_embedding = TemporalEmbedding(d_model=d_model)
         self.dropout = nn.Dropout(p=dropout)
 
-    def forward(self, x, x_mark):
-        x = self.value_embedding(x) + self.position_embedding(x) + self.temporal_embedding(x_mark)
+    def forward(self, x):
+        x = self.value_embedding(x) + self.position_embedding(x)
 
         return self.dropout(x)

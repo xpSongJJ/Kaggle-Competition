@@ -4,7 +4,7 @@ import json
 import numpy as np
 import pandas as pd
 import torch
-from model import HFAttention
+from net import HFAttention
 from utils import test_processing
 
 
@@ -97,14 +97,14 @@ competition = make_env()
 competition._state = competition._state.__class__['INIT']  # 2: Be able to start the competition iteration again
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-net = HFAttention(in_len=96, token_len=16, d_model=512)
+net = HFAttention(seq_len=96, token_size=16, d_model=512)
 net.load_state_dict(torch.load("./checkpoint/weights.pth"))
 net.to(device)
 with open('./data/params.json', 'r') as f:
     vars_dict = json.load(f)
 
 for labels, train in competition.iter_test():
-    # run model ... do something...
+    # run blocks ... do something...
     batch_data, batch_stamp, level_group = test_processing(train, vars_dict, 96)
     predict = net(batch_data.to(device), batch_stamp.to(device))[level_group]
     bin_predict = np.where(predict.cpu() >= 0.5, 1, -1)
