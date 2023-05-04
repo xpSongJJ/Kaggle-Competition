@@ -11,6 +11,7 @@ import torch.utils.data
 from net import HFAttention as create_model
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
+from sklearn.metrics import f1_score, accuracy_score
 
 
 def criterion(y_pred, y_true):
@@ -26,13 +27,13 @@ def batch_acc(y_pred, y_true):
     # Sigmoid function maps predicted values to a range of 0 to 1
     y_true = np.asarray(y_true)
     y_pred = torch.sigmoid(y_pred)
-    y_pred_logit = np.where(y_pred >= 0.5, 1, 0)
+    y_pred_logit = np.where(y_pred >= 0.625, 1, 0)
     acc = np.sum(y_pred_logit == y_true) / y_pred_logit.size
     return acc
 
 
 config = {
-    'epoch': 1,
+    'epoch': 10,
     'batch_size': 32,
     'device': torch.device("cuda"),
     'lr': 1e-3
@@ -41,7 +42,7 @@ config = {
 if os.path.exists("./checkpoint") is False:
     os.makedirs("./checkpoint")
 
-seq_len = 96  # sequence length of input which equal to token number
+seq_len = 192  # sequence length of input which equal to token number
 out_len = 18  # total 18 questions
 token_size = 19  # token length, 15 columns
 net = create_model(seq_len=seq_len, token_size=token_size, d_model=512)
@@ -84,7 +85,7 @@ for step, level_group in enumerate(level_groups):
     val_loader = torch.utils.data.DataLoader(val_ds,
                                              batch_size=config['batch_size'],
                                              shuffle=True)
-    best_acc = 0
+    best_f1 = 0
     for epoch in range(config['epoch']):
         # train
         net.train()
@@ -108,26 +109,33 @@ for step, level_group in enumerate(level_groups):
         # evaluate
         net.eval()
         val_loss = []
-        val_acc = []
+        y_pred = []
+        y_true = []
         val_loader = tqdm(val_loader, desc=f"evaluate epoch: {epoch}/{config['epoch']}", file=sys.stdout)
         for seqs, labels in val_loader:
             out = net(seqs.to(device))[step]
             label = labels[:, level_group_q[step]]
 
             loss = criterion(out, label.to(device))
+
             val_loss.append(loss.item())
-            val_acc.append(batch_acc(out.cpu(), label))  # build-in sigmoid
-            val_loader.set_postfix({'loss': np.average(val_loss), 'acc': np.average(val_acc)})
+            out_logit = np.where(out.cpu() >= 0.625, 1, 0)
+            y_pred.extend(list(out_logit.flatten()))
+            label = np.asarray(label)
+            y_true.extend(list(label.flatten()))
+            val_acc = accuracy_score(y_true, y_pred)
+
+            val_loader.set_postfix({'loss': np.average(val_loss), 'acc': val_acc})
 
         val_loss_ep = np.average(val_loss)
-        val_acc_ep = np.average(val_acc)
+        f1 = f1_score(y_true, y_pred)
+        print(f'-------------f1_score: {f1}---------------')
         writer.add_scalar("evaluate_loss", val_loss_ep, epoch)
-        writer.add_scalar("evaluate_acc", val_acc_ep, epoch)
+        writer.add_scalar("evaluate_acc", f1, epoch)
 
-        if best_acc < val_acc_ep:
+        if best_f1 < f1:
             torch.save(net.state_dict(), "./checkpoint/weights.pth")
-            best_acc = val_acc_ep
+            best_f1 = f1
 
-    del train_ds, train_loader, val_ds, val_loader
 
 print("training finished !")

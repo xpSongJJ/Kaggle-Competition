@@ -307,20 +307,28 @@ def prefix_na(cat: list, na):
         cat.insert(0, cat.pop(cat.index(na)))
 
 
-def preprocess(dataframe, cat_map):
-    # categorical type map to numeric
+def preprocess(dataframe, cat_map: dict, seq_len: int):
     df = dataframe
-    columns = df.columns
-    NUMS = ['room_coor_x', 'room_coor_y', 'screen_coor_x', 'screen_coor_y', 'hover_duration']
-    CATS = ['event_name', 'name', 'page', 'fqid', 'room_fqid', 'text_fqid', 'text']
-    fill_na = {'event_name': 'event_name_na', 'name': 'name_na', 'page': 7.0,
-               'fqid': 'fqid_na', 'room_fqid': 'room_fqid_na', 'text_fqid': 'text_fqid_na', 'text': 'text_na'}
-    df = df.fillna(value=fill_na)
-    for cat in CATS:
-        df[cat] = pd.Categorical(df[cat], cat_map[cat])
-
-    df['elapsed_time'] = df['elapsed_time'].apply(lambda x: x / 1000).astype(np.float32)
-    df[NUMS].fillna(0)
+    df['year'] = df['session_id'].apply(lambda x: int(str(x)[:2]))
+    df['month'] = df['session_id'].apply(lambda x: int(str(x)[2:4])+1)
+    df['weekday'] = df['session_id'].apply(lambda x: int(str(x)[4:6]))
+    df['hour'] = df['session_id'].apply(lambda x: int(str(x)[6:8]))
+    for cat in cat_map:
+        df[cat] = df[cat].map(cat_map[cat])
+    df = df.drop(columns=["level_group", "fullscreen", "hq", "music"])
+    df = df.fillna(0)
+    session_ids = df['session_id'].unique()
+    data = np.zeros((len(session_ids), seq_len, 19))
+    for i, session_id in enumerate(session_ids):
+        df_filtered = df[df['session_id'] == session_id]
+        data_x = df_filtered.drop(columns=['session_id']).values
+        if data_x.shape[0] < seq_len:
+            pad_len = seq_len - data_x.shape[0]
+            data_x = np.pad(data_x, ((0, pad_len), (0, 0)))  # padding 0
+        else:
+            data_x = data_x[:seq_len, :]
+        data[i, :, :] = data_x
+    return torch.FloatTensor(data)
 
 
 def drop_session(dataframe, min_len):

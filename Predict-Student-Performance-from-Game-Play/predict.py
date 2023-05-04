@@ -1,11 +1,11 @@
+import json
 import sys
 from enum import Enum
-import json
 import numpy as np
 import pandas as pd
 import torch
 from net import HFAttention
-from utils import test_processing
+from utils import preprocess
 
 
 if sys.platform == 'win32':
@@ -94,21 +94,33 @@ class Competition:
 make_env.__called__ = False  # 1: be able to call make_env() again
 
 competition = make_env()
+iter_test = competition.iter_test()
 competition._state = competition._state.__class__['INIT']  # 2: Be able to start the competition iteration again
-
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-net = HFAttention(seq_len=96, token_size=16, d_model=512)
+with open('./data/cat_map.json') as f:
+    cat_map = json.load(f)
+device = torch.device('cpu')
+net = HFAttention(seq_len=96, token_size=19, d_model=512)
 net.load_state_dict(torch.load("./checkpoint/weights.pth"))
 net.to(device)
-with open('./data/params.json', 'r') as f:
-    vars_dict = json.load(f)
+net_rank = {'0-4': 0, '5-12': 1, '13-22': 2}
+question_rank = {'0-4': (1, 4), '5-12': (4, 14), '13-22': (14, 19)}
+for sample_submission, train in iter_test:
+    # run model ... do something...
+    level_group = train.level_group.values[0]
+    data_x = preprocess(train, cat_map, seq_len=96)
+    net.eval()
+    with torch.no_grad():
+        y_pred = net(data_x)[net_rank[level_group]]
+        y_pred = torch.sigmoid(y_pred)
+        y_pred_logit = np.atleast_2d(np.where(y_pred >= 0.625, 1, 0))
 
-for labels, train in competition.iter_test():
-    # run blocks ... do something...
-    batch_data, batch_stamp, level_group = test_processing(train, vars_dict, 96)
-    predict = net(batch_data.to(device), batch_stamp.to(device))[level_group]
-    bin_predict = np.where(predict.cpu() >= 0.5, 1, -1)
-    result = np.where(np.sum(bin_predict, axis=0) >= 0, 1, 0)
-    labels['correct'] = result
+    sample_submission['question'] = [int(label.split('_')[1][1:]) for label in sample_submission['session_id']]
+    a, b = question_rank[level_group]
+    for t in range(a, b):
+        mask = sample_submission.question == t
+        sample_submission.loc[mask, 'correct'] = y_pred_logit[:, t - a]
     # predict the results
-    competition.predict(labels)
+    competition.predict(sample_submission[['session_id', 'correct']])
+
+df = pd.read_csv('local_submission.csv')
+print(df, '\n', df.dtypes)
