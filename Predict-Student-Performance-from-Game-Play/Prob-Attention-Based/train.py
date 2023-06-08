@@ -1,17 +1,14 @@
 import time
 import sys
-import os
 import random
 import numpy as np
 import pandas as pd
-import torch
 from torch import optim
 from utils import reduce_memory_usage, best_f1_threshold
 import torch.utils.data
 from model import HFAttention as create_model
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
-from sklearn.metrics import f1_score
 
 from my_dataset import MyDataset
 from config import *
@@ -27,7 +24,7 @@ if os.path.exists(f"./checkpoint/weights.pth"):
     net.load_state_dict(torch.load(f"./checkpoint/weights.pth"))
 net.to(device)
 
-targets = pd.read_parquet(DATA_ROOT+"labels_all.parquet")
+targets = pd.read_parquet(DATA_ROOT+"labels_all.csv")
 
 df = pd.read_parquet(DATA_ROOT+"train.parquet", columns=read_cols)
 for cat in cat2codes:

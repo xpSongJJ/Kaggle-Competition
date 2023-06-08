@@ -1,3 +1,4 @@
+
 N_QNS = 18
 LEVEL = list(range(23))
 LEVEL_GROUP = ["0-4", "5-12", "13-22"]
@@ -8,8 +9,8 @@ CAT_FEAT_SIZE = {
     "event_comb_code": 19,
     "room_fqid_code": 19,
 }
-ORIG_INPUT_PATH = "D:\\KaggleCompetition\\PyCharm\\Predict-Student-Performance-from-Game-Play\\data\\train.csv"
-TARGET_PATH = "D:\\KaggleCompetition\\PyCharm\\Predict-Student-Performance-from-Game-Play\\data\\train_labels.csv"
+ORIG_INPUT_PATH = "../data/train.csv"
+TARGET_PATH = "../data/train_labels.csv"
 
 
 class CFG:

@@ -15,9 +15,8 @@ warnings.simplefilter("default")
 
 def main():
     cfg = CFG()
-    X = pd.read_parquet('../data/train_part.parquet')
+    X = pd.read_parquet('./data/train_part.parquet')
     y_lvgp = pd.read_parquet('../data/labels_lvgp.parquet')
-    # y_all = pd.read_parquet('./data/labels_all.parquet')
     if cfg.train:
         sess_id = X["session_id"].unique()
 
@@ -85,7 +84,7 @@ def main():
             # Record oof prediction of the current fold
             oof_pred.loc[sess_val, :] = torch.cat(oof_pred_fold, dim=1).numpy()
     else:
-        oof_pred = pd.read_csv("../data/preds.csv")
+        oof_pred = pd.read_csv("./data/preds.csv")
         oof_pred.set_index("session", inplace=True)
         oof_pred.rename({"session": "session_id"}, axis=1, inplace=True)
 

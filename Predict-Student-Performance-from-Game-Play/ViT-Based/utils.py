@@ -41,7 +41,8 @@ class MyDataset(Dataset):
     def __getitem__(self, item):
         idx = self.index[item]
         session_id = self.targets.loc[idx, 'session_id']
-        data_y = eval(self.targets.loc[idx, 'correct'])
+        # data_y = eval(self.targets.loc[idx, 'correct'])
+        data_y = self.targets.loc[idx, 'correct']
 
         data_x = self.groups.get_group(session_id).copy()
         data_x['elapsed_time_diff'] = data_x['elapsed_time'].diff().apply(lambda x: np.log(1+x/1000))

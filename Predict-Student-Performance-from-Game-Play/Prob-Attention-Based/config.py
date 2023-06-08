@@ -1,4 +1,5 @@
 import json
+import os
 
 BATCH_SIZE = 64
 TOKEN_SIZE = 10
@@ -16,10 +17,9 @@ use_cols = ['elapsed_time', 'elapsed_time_diff', 'event_name', 'name', 'level', 
 LEVEL_GROUP = ['0-4', '5-12', '13-22']
 LEVEL_GROUP_QST = {'0-4': range(3), '5-12': range(3, 13), '13-22': range(13, 18)}
 
-# model params
-params = {
-
-}
 
 with open('./data/cat_map.json', 'r') as f:
     cat2codes = json.load(f)
+
+if not os.path.exists("./checkpoint"):
+    os.mkdir("./checkpoint")

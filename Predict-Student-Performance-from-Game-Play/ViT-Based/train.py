@@ -3,7 +3,6 @@ import os
 import random
 import numpy as np
 import pandas as pd
-import torch
 from torch import optim
 from utils import MyDataset, BCEFocalLoss, best_f1_threshold, create_lr_scheduler
 import torch.utils.data
@@ -14,7 +13,7 @@ from config import *
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 print(f"Begin training, using device {device}")
 
-targets = pd.read_csv('./data/label_lvgp.csv')
+targets = pd.read_parquet('../data/labels_lvgp.parquet')
 target_groups = targets.groupby('level_group')
 with open('./data/positive_duty.json', 'r') as f:
     positive_duty = json.load(f)
